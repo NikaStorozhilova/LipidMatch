@@ -43,7 +43,7 @@ rm(list = ls()) #remove all R objects from memory, this program can be memory in
 #If you want to manually input your variables... 
 # 1. Set ManuallyInputVariables <- TRUE (all caps)
 # 2. Assign variables under the next if statement, "if (ManuallyInputVariables==TRUE)"
-csvInput <- FALSE
+csvInput <- TRUE
 ManuallyInputVariables <- FALSE
 
 #### END Mandatory Parameter to Change #### 
@@ -127,8 +127,8 @@ if (ManuallyInputVariables==TRUE){
 }else if(csvInput == TRUE){
   ####################### Get input from csv VARIABLES SECTION ###############################
   #parametersDirectory
-parametersDir <- "C:/Users/Jeremy/Desktop/Desktop/Instrumentation/Software/MSms/LipidMatch_Workflow/LipidMatch_Flow_Versions/LipidMatch_Flow_Portable/LipidMatch_Flow/LipidMatch_Distribution/"
-parametersFile <- paste(parametersDir, "LIPIDMATCH_PARAMETERS_Agilent_QTOF_6530.csv", sep="")
+  parametersDir <- "C:/Users/R/Documents/LipidMatch/LipidMatch/"
+  parametersFile <- paste(parametersDir, "LIPIDMATCH_PARAMETERS_Agilent_QTOF_6530.csv", sep="")
   parametersInput_csv <- read.csv(parametersFile, sep=",", na.strings="NA", dec=".", strip.white=TRUE,header=FALSE)
   parametersInput_csv <- as.matrix(parametersInput_csv)
   ErrorOutput<-0
@@ -1054,36 +1054,48 @@ createddMS2dataFrame <- function (ms2_dir){
     mz <- vector()
     intensity <- vector()
     nextSBlock <- s_indicies[s+1]
-    if(s == length(s_indicies)) { #last iteration
-      if(ms2[s_indicies[s]+16]=="Z"){ 
-        for (m in seq(19, length(ms2)-s_indicies[s], 2)){
-          mz <- append(mz, ms2[s_indicies[s]+m])
-        } 
-        for (i in seq(20, length(ms2)-s_indicies[s], 2)){
-          intensity <- append(intensity, ms2[s_indicies[s]+i])
-        } 
-      }else{
-        for (m in seq(16, length(ms2)-s_indicies[s], 2)){
-          mz <- append(mz, ms2[s_indicies[s]+m])
-        } 
-        for (i in seq(17, length(ms2)-s_indicies[s], 2)){
-          intensity <- append(intensity, ms2[s_indicies[s]+i])
+    if(s == length(s_indicies)) { #last iteration 
+      n = 0
+      empty = FALSE
+      while(is.na(as.numeric(ms2[s_indicies[s] + 4 + n]))){
+        if(ms2[s_indicies[s]+ 4 + n] != "S"){
+          if((s_indicies[s]+ 4 + n + 2 < length(ms2)) ){
+            n = n + 3
+          }else{
+            empty = TRUE
+            break
+          }
         }
       }
-    }else if(ms2[s_indicies[s]+16]=="Z"){ #Need this conditional because some "S blocks" in the ms2 file have an extra line of information, specifically, "Z" "1" "#####"
-      for (m in seq(19, nextSBlock-s_indicies[s]-2, 2)){
+      if(empty){
+        break
+      }
+      for (m in seq(4+n, length(ms2)-s_indicies[s], 2)){
         mz <- append(mz, ms2[s_indicies[s]+m])
       } 
-      for (i in seq(20, nextSBlock-s_indicies[s]-1, 2)){
+      for (i in seq(4 + n + 1, length(ms2)-s_indicies[s], 2)){
         intensity <- append(intensity, ms2[s_indicies[s]+i])
-      } 
-    }else{ #every iteration except last
-      for (m in seq(16, nextSBlock-s_indicies[s]-2, 2)){
+      }
+    }else{ #Need this conditional because some "S blocks" in the ms2 file have an extra line of information, specifically, "Z" "1" "#####"
+      n = 0
+      empty = FALSE
+      while(is.na(as.numeric(ms2[s_indicies[s]+4+ n]))){
+        if(ms2[s_indicies[s]+ 4 + n] != "S"){
+          n = n + 3
+        }else{
+          empty = TRUE
+          break
+        }
+      }
+      if(empty){
+        next
+      }
+      for (m in seq(4+n, nextSBlock-s_indicies[s]-2, 2)){
         mz <- append(mz, ms2[s_indicies[s]+m])
       } 
-      for (i in seq(17, nextSBlock-s_indicies[s]-1, 2)){
+      for (i in seq(4 + n + 1, nextSBlock-s_indicies[s]-1, 2)){
         intensity <- append(intensity, ms2[s_indicies[s]+i])
-      } 
+      }
     }
     precursor <- ms2[s_indicies[s]+3]
     rt <- ms2[s_indicies[s]+6]
@@ -1102,7 +1114,7 @@ createAIFMS2dataFrame <- function (ms2_dir){
   s_index <- match("S", ms2)
   ms2 <- ms2[s_index:length(ms2)] #cut off head useless info from .ms2
   s_indicies <- which(ms2=="S")
-  ms2_df<- data.frame(scanNum=numeric(), rt=numeric(), mz_intensity=I(list()))
+  ms2_df <- data.frame(scanNum=numeric(), rt=numeric(), mz_intensity=I(list()))
   
   #interpret .ms2 file into more reasonable format
   #loop over all "S" blocks to get ms2 data
@@ -1127,19 +1139,32 @@ createAIFMS2dataFrame <- function (ms2_dir){
         }
       }
     }else if(ms2[s_indicies[s]+16]=="Z"){ #Need this conditional because some "S blocks" in the ms2 file have an extra line of information, specifically, "Z" "1" "#####"
-      for (m in seq(19, nextSBlock-s_indicies[s]-2, 2)){
-        mz <- append(mz, ms2[s_indicies[s]+m])
-      } 
-      for (i in seq(20, nextSBlock-s_indicies[s]-1, 2)){
-        intensity <- append(intensity, ms2[s_indicies[s]+i])
-      } 
+      if(s_indicies[s]+19 != "S"){
+        for (m in seq(19, nextSBlock-s_indicies[s]-2, 2)){
+          mz <- append(mz, ms2[s_indicies[s]+m])
+        } 
+        for (i in seq(20, nextSBlock-s_indicies[s]-1, 2)){
+          intensity <- append(intensity, ms2[s_indicies[s]+i])
+        } 
+      }else{
+        mz <- append(mz, NA)
+        intensity <- append(intensity, NA)
+      }
     }else{ #every iteration except last
-      for (m in seq(16, nextSBlock-s_indicies[s]-2, 2)){
-        mz <- append(mz, ms2[s_indicies[s]+m])
-      } 
-      for (i in seq(17, nextSBlock-s_indicies[s]-1, 2)){
-        intensity <- append(intensity, ms2[s_indicies[s]+i])
-      } 
+      if(s_indicies[s]+16 != "S"){
+        if(nextSBlock-s_indicies[s]-2<16){
+          write(nextSBlock-s_indicies[s]-2, "C:\\Users\\R\\Documents\\rscripts\\Output.txt")
+        }
+        for (m in seq(16, nextSBlock-s_indicies[s]-2, 2)){
+          mz <- append(mz, ms2[s_indicies[s]+m])
+        } 
+        for (i in seq(17, nextSBlock-s_indicies[s]-1, 2)){
+          intensity <- append(intensity, ms2[s_indicies[s]+i])
+        } 
+      }else{
+        mz <- append(mz, NA)
+        intensity <- append(intensity, NA)
+      }
     }
     scanNum <- ms2[s_indicies[s]+1] #gets Scan Number (right of each "S" block in ms2)
     rt <- ms2[s_indicies[s]+6]
@@ -1150,7 +1175,7 @@ createAIFMS2dataFrame <- function (ms2_dir){
   return(ms2_df)
 }
 
-CreateIDs <- function(PeakTableDirectory, ddMS2directory, Classdirectory, AIFdirectory, ImportLib, OutputDirectory, ddMS2, ddMS2Class, AIF, mode){
+CreateIDs <- function(LibraryCriteria, PeakTableDirectory, ddMS2directory, Classdirectory, AIFdirectory, ImportLib, OutputDirectory, ddMS2, ddMS2Class, AIF, mode){
   # Generates IDs by matching Comment column from FeatureTable.csv and All_Confirmed.csv files
   # Feature Table Columns:
   # ID
@@ -1260,6 +1285,7 @@ CreateIDs <- function(PeakTableDirectory, ddMS2directory, Classdirectory, AIFdir
   
   Lib <- read.csv(ImportLib, sep=",", na.strings="NA", dec=".", strip.white=TRUE,header=FALSE)
   Lib <- as.matrix(Lib)
+  Lib <- Lib[!(1:length(Lib[,1]) %in% grep("HCO2", Lib[,1])),]
   #Exact mass matching for Precursor library to feature table m/zs
   NOID <- paste(NoID_Code,"_NoID",sep="")
   NumLibMZ <- as.numeric(Lib[,ParentMZcol_in])
@@ -1673,6 +1699,7 @@ for(i in seq_len(lengthFoldersToRun)){
   }
   
   #Compilation/ID code for reduced confirmed files
+  #FIX ME  
   if(runPosAIF || runPosddMS){
     print("Creating Identifications for Positive Mode")
   }
@@ -1680,46 +1707,46 @@ for(i in seq_len(lengthFoldersToRun)){
     ddMS2directory<-paste(OutputDirectoryddMSPos_in,"Confirmed_Lipids\\", sep="")
     Classdirectory<-paste(OutputDirectoryddMSPosByClass_in,"Confirmed_Lipids\\", sep="")
     AIFdirectory<-"Nothing"
-    CreateIDs(paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
   }
-  
+  #FIX ME  
   if(runPosAIF & runPosddMS){
     ddMS2directory<-paste(OutputDirectoryddMSPos_in,"Confirmed_Lipids\\", sep="")
     Classdirectory<-paste(OutputDirectoryddMSPosByClass_in,"Confirmed_Lipids\\", sep="")
     AIFdirectory<-paste(OutputDirectoryAIFPos_in,"Confirmed_Lipids\\", sep="")
-    CreateIDs(paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
   }
-  
+  #FIX ME  
   if(runPosAIF & !runPosddMS){
     ddMS2directory<-"Nothing"
     Classdirectory<-"Nothing"
     AIFdirectory<-paste(OutputDirectoryAIFPos_in,"Confirmed_Lipids\\", sep="")
-    CreateIDs(paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_POS,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibPOS, OutputDirectory, PosDDLib, PosClassDDLib, PosAIFLib, "Pos")
   }
   
   if(runNegAIF || runNegddMS){
     print("Creating Identifications for Negative Mode")  
   }
-  
+  #FIX ME Prec mass   
   if(runNegAIF & !runNegddMS){
     ddMS2directory <- "Nothing"
     Classdirectory <- "Nothing"
     AIFdirectory <- paste(OutputDirectoryAIFNeg_in,"Confirmed_Lipids\\", sep="")
-    CreateIDs(paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
   }
   
   if(runNegddMS & !runNegAIF){
     ddMS2directory <- paste(OutputDirectoryddMSNeg_in,"Confirmed_Lipids\\", sep="")
     Classdirectory <- paste(OutputDirectoryddMSNegByClass_in,"Confirmed_Lipids\\", sep="")
     AIFdirectory <- "Nothing"
-    CreateIDs(paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
   }
-  
+  #FIX ME  
   if(runNegddMS & runNegAIF){
     ddMS2directory <- paste(OutputDirectoryddMSNeg_in,"Confirmed_Lipids\\", sep="")
     Classdirectory <- paste(OutputDirectoryddMSNegByClass_in,"Confirmed_Lipids\\", sep="")
     AIFdirectory <- paste(OutputDirectoryAIFNeg_in,"Confirmed_Lipids\\", sep="")
-    CreateIDs(paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
+    CreateIDs(LibraryCriteria, paste(fpath,FeatureTable_NEG,sep=""), ddMS2directory, Classdirectory, AIFdirectory, ImportLibNEG, OutputDirectory, NegDDLib, NegClassDDLib, NegAIFLib, "Neg")
   }
   
 }#end folder loop
